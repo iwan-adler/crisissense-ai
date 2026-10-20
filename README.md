@@ -1,20 +1,34 @@
 # CrisisSense AI
 
-AI Innovation Hackathon 2026: open-data geospatial AI for climate hazards. This repo holds two projects:
+**Block-level climate hazard intelligence from open satellite data, with the reasons behind every hotspot.**
 
-| Project | Hazard | What it does | Status |
+CrisisSense AI maps and forecasts local climate risk for cities. City-wide averages hide the blocks that need help
+first. CrisisSense works at the block level and explains each result, so planners and responders can act where it matters.
+
+## Modules
+
+| Module | Hazard | Question it answers | Status |
 |---|---|---|---|
-| **CrisisSense** | Floods | Segments flooded/water pixels in Sentinel-1 radar imagery (flood *mapping*) as the basis for impact estimates | Data ready (Sen1Floods11) |
-| **[LooMap](loomap/README.md)** | Urban heat | Forecasts heat risk for every ~500 m city block over 72 h and explains the drivers of each hotspot | Planning |
+| [Flood](modules/flood/README.md) | Floods | Which areas are flooded right now? (Sentinel-1 radar segmentation) | Data ready |
+| [Heat](modules/heat/README.md) | Urban heat | Which blocks will be dangerously hot in the next 72 h, and why? | Planning |
+
+Both modules share one pipeline and one dashboard:
+
+1. **Collect:** open satellite, weather and map data for any city boundary
+2. **Engineer:** per-block features (built-up share, vegetation, roads, water distance, elevation)
+3. **Learn:** ML models per hazard (segmentation for floods, LightGBM for heat)
+4. **Explain:** drivers (SHAP) and an uncertainty band on every prediction
+5. **Act:** hazard maps, risk levels and what-if scenarios in a Streamlit + Folium dashboard
 
 ## Layout
 
 ```
-data/                       # local datasets, NOT committed (see data/README.md)
-  sen1floods11_v1.1/        # flood: Sentinel-1 chips, hand-labeled masks, splits
+modules/
+  flood/          # flood mapping (Sen1Floods11, Sentinel-1)
+  heat/           # heat risk forecasting (Landsat LST, Sentinel-2, ERA5, OSM)
 scripts/
-  inspect_sen1floods11.py   # dataset sanity report (counts, formats, dims, labels)
-loomap/                     # heat-risk project (LooMap)
+  inspect_sen1floods11.py   # flood dataset sanity report
+data/             # local datasets, NOT committed (see data/README.md)
 ```
 
 ## Setup (Windows PowerShell)
@@ -25,6 +39,11 @@ python -m venv .venv
 # download the flood data: see data/README.md
 .\.venv\Scripts\python.exe -I scripts\inspect_sen1floods11.py
 ```
+
+## Responsible use
+
+A research prototype, not an official warning system. It uses only open, permitted datasets with no personal data;
+population is used at ward level only. Every prediction carries an uncertainty band.
 
 ## Data policy
 

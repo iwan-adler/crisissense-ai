@@ -59,5 +59,6 @@ Sen1Floods11 supports **flood mapping**: segmenting water/flooded pixels in a sa
 captured* during or after an event (what is flooded now). It contains no time series, rainfall, river gauge,
 or forecast data, so on its own it can't predict **future** flooding.
 **Flood forecasting** (where and when flooding will happen) needs extra inputs such as precipitation forecasts,
-hydrological/river discharge models (e.g. GloFAS), soil moisture, and terrain. Within CrisisSense AI,
-the segmentation model's maps can serve as ground truth or impact layers for a forecasting component. They are not a forecast.
+hydrological/river discharge models (e.g. GloFAS), soil moisture, and terrain. In CrisisSense AI, this dataset
+serves the **flood module** (`modules/flood`): its maps are impact layers or ground truth, not a forecast.
+The **heat module** (`modules/heat`) uses different data (Landsat LST, Sentinel-2, ERA5, OSM) and does forecast 72 h ahead.
