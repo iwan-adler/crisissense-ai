@@ -1,0 +1,18 @@
+{
+  "name": "loomap",
+  "version": "1.0.0",
+  "description": "Street-level heat risk for any city: open satellite, map and weather data, trained in the browser.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes serve@14 .",
+    "build": "node scripts/build.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.0"
+  }
+}
