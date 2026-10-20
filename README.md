@@ -1,45 +1,43 @@
 # CrisisSense AI
 
-**Block-level climate hazard intelligence from open satellite data, with the reasons behind every hotspot.**
+**Heat risk, block by block, for any city, with the reasons behind every hotspot.**
 
-CrisisSense AI maps and forecasts local climate risk for cities. City-wide averages hide the blocks that need help
-first. CrisisSense works at the block level and explains each result, so planners and responders can act where it matters.
+HeatShield AI · Challenge 02
 
-**Live demo (heat module): https://loomap-xi.vercel.app**
+**Live demo (LooMap):** https://loomap-xi.vercel.app/ · **Code:** [modules/heat/app](modules/heat/app/README.md)
 
-## Modules
+City-wide heat forecasts hide the blocks that need cooling shelters, water points and new trees first.
+Pick a city and LooMap downloads Landsat thermal imagery, OpenStreetMap and weather data, trains a gradient-boosted
+model **in the browser**, and forecasts heat risk for every 500 m block over the next 3 days, with the reasons and a
+confidence band for each block.
 
-| Module | Hazard | Question it answers | Status |
-|---|---|---|---|
-| [Flood](modules/flood/README.md) | Floods | Which areas are flooded right now? (Sentinel-1 radar segmentation) | Data ready |
-| [Heat (LooMap)](modules/heat/README.md) | Urban heat | Which blocks will be dangerously hot in the next 3 days, and why? | **Live:** [web app](https://loomap-xi.vercel.app) · [code](modules/heat/app/README.md) |
+## Using the demo
 
-Both modules follow the same approach:
+1. Enter a city and choose an area: 8×8, 12×12 or 16×16 km.
+2. Click **Analyse**. The pipeline log shows progress while data downloads and the model trains.
+3. Explore the 3-day forecast, the map layers (surface heat, risk, hotspots, uncertainty, latest satellite observation),
+   the spatial cross-validation scores and the drivers of heat in each block.
+4. Optionally download the dataset as CSV.
 
-1. **Collect:** open satellite, weather and map data for any city
-2. **Engineer:** per-block features (built-up share, vegetation, roads, water distance, elevation)
-3. **Learn:** ML models per hazard (segmentation for floods; gradient-boosted trees for heat)
-4. **Explain:** drivers per block and an uncertainty band on every prediction
-5. **Act:** hazard maps, risk levels and what-if scenarios
+## How it works
 
-## Layout
+1. **Collect:** Landsat 8/9 Collection 2 scenes from the last 3 years via Microsoft Planetary Computer; clouds and shadows removed with the QA band.
+2. **Engineer:** per-block vegetation, built-up and water shares, road density, distance to water and green space, relative elevation (Copernicus DEM), and ERA5 air temperature, humidity and wind at satellite overpass.
+3. **Learn:** a city-level model predicts mean surface temperature from air temperature; a gradient-boosted tree model learns each block's deviation, with monotone constraints so more vegetation or water never raises predicted heat.
+4. **Prove:** spatial 4-fold cross-validation holds out whole neighbourhoods and compares against city-average, linear and greenery-only baselines. P10–P90 bands are split-conformal calibrated to cover ~80% of held-out observations.
+5. **Forecast:** each block's surface state plus the Open-Meteo 3-day forecast gives a feels-like risk, banded with US NWS heat-index categories.
+6. **Explain and act:** per-block drivers (tree-path attribution), significant hotspots (Getis-Ord Gi*), and what-if scenarios with more trees or new development.
 
-```
-modules/
-  flood/          # flood mapping (Sen1Floods11, Sentinel-1)
-  heat/           # heat risk forecasting
-    app/          # LooMap web app: runs in the browser, deployed on Vercel (see app/README.md)
-scripts/
-  inspect_sen1floods11.py      # flood dataset sanity report
-  visualize_sen1floods11.py    # plot S1 VV/VH next to flood masks
-  preprocess_sen1floods11.py   # nodata handling, clipping, train-only normalization -> .npy
-data/             # local datasets, NOT committed (see data/README.md)
-outputs/          # generated figures, NOT committed
-```
+## Results
 
-## Setup
+Held-out MAE in spatial cross-validation: **Jaipur 0.66 °C** (city-average baseline 1.00), **Phoenix 0.76 °C** (1.16),
+**Cairo 0.90 °C** (1.40). Details: [modules/heat/app/README.md](modules/heat/app/README.md#results).
 
-**Heat module (web app, Node.js 18+):**
+More on design choices and what changed from the original plan: [modules/heat/README.md](modules/heat/README.md)
+
+## Run locally
+
+Requires Node.js 18+.
 
 ```bash
 cd modules/heat/app
@@ -47,21 +45,24 @@ npm start      # http://localhost:3000
 npm test       # 14 tests, no network needed
 ```
 
-**Flood module (Python, Windows PowerShell):**
+## Layout
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-# download the flood data: see data/README.md, then see modules/flood/README.md for the scripts
+```
+modules/
+  heat/
+    README.md     # design choices, data, results, next steps
+    app/          # LooMap web app: runs in the browser, deployed on Vercel
 ```
 
-## Responsible use
+## Limits and responsible use
 
-A research prototype, not an official warning system. It uses only open, permitted datasets and no personal data.
-Every prediction carries an uncertainty band, and each module documents its known blind spots.
+- A **research prototype**, not a heat alert or health warning.
+- Landsat measures **surface** temperature at about 10:30 local time, not the air temperature people feel, and not night-time heat.
+- OpenStreetMap is weaker in informal settlements, which are often the most heat-vulnerable.
+- What-if scenarios change satellite indices, not real materials, so results are directional only.
+- **No personal data.** Nothing leaves the browser except requests to public data APIs, and no data is stored in the repo.
 
-## Data policy
+## Data attribution
 
-Open, free datasets only. Raw data is never committed: `.gitignore` excludes `data/` except its README,
-and each dataset's source, download command and checksum are documented in `data/README.md`.
-The heat module downloads its data live in the browser and stores nothing in the repo.
+USGS Landsat 8/9 Collection 2 Level 2 · Microsoft Planetary Computer · © OpenStreetMap contributors ·
+Open-Meteo (ERA5, ECMWF / DWD / NOAA forecasts, Copernicus DEM)

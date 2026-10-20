@@ -37,4 +37,3 @@ Held-out MAE in spatial cross-validation: **Jaipur 0.66 °C** (city-average base
 - Night-time heat (Landsat night scenes or MODIS night LST)
 - Population exposure per block
 - Cool-roof scenarios using albedo instead of indices
-- Sharing the flood module's dashboard shell

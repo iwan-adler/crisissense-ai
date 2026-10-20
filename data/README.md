@@ -61,4 +61,4 @@ or forecast data, so on its own it can't predict **future** flooding.
 **Flood forecasting** (where and when flooding will happen) needs extra inputs such as precipitation forecasts,
 hydrological/river discharge models (e.g. GloFAS), soil moisture, and terrain. In CrisisSense AI, this dataset
 serves the **flood module** (`modules/flood`): its maps are impact layers or ground truth, not a forecast.
-The **heat module** (`modules/heat`) uses different data (Landsat LST, Sentinel-2, ERA5, OSM) and does forecast 72 h ahead.
+The **heat module** (`modules/heat`) (LooMap, https://loomap-xi.vercel.app/) uses different data (Landsat 8/9, OSM, Open-Meteo/ERA5, Copernicus DEM) and does forecast 3 days ahead.
