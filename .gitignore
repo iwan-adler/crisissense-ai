@@ -2,6 +2,9 @@
 data/*
 !data/README.md
 
+# Generated figures and outputs
+outputs/
+
 # Python
 .venv/
 __pycache__/

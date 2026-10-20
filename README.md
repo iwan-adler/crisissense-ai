@@ -27,17 +27,19 @@ modules/
   flood/          # flood mapping (Sen1Floods11, Sentinel-1)
   heat/           # heat risk forecasting (Landsat LST, Sentinel-2, ERA5, OSM)
 scripts/
-  inspect_sen1floods11.py   # flood dataset sanity report
+  inspect_sen1floods11.py      # flood dataset sanity report
+  visualize_sen1floods11.py    # plot S1 VV/VH next to flood masks
+  preprocess_sen1floods11.py   # nodata handling, clipping, train-only normalization -> .npy
 data/             # local datasets, NOT committed (see data/README.md)
+outputs/          # generated figures, NOT committed
 ```
 
 ## Setup (Windows PowerShell)
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install rasterio numpy
-# download the flood data: see data/README.md
-.\.venv\Scripts\python.exe -I scripts\inspect_sen1floods11.py
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+# download the flood data: see data/README.md, then see modules/flood/README.md for the scripts
 ```
 
 ## Responsible use
