@@ -14,10 +14,14 @@ const S = { ds: null, M: null, fc: null, day: 0, layer: 'heat', obs: false, pred
 
 // ---------- map ----------
 const map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([22, 20], 3);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-  maxZoom: 19, subdomains: 'abcd',
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a> · Landsat: USGS',
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
+L.tileLayer(ESRI + 'World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 16, attribution: 'Basemap © Esri, HERE, Garmin, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Landsat: USGS',
 }).addTo(map);
+map.createPane('labels');
+map.getPane('labels').style.zIndex = 650;
+map.getPane('labels').style.pointerEvents = 'none';
+L.tileLayer(ESRI + 'World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, pane: 'labels' }).addTo(map);
 const gridLayer = L.layerGroup().addTo(map);
 const selLayer = L.layerGroup().addTo(map);
 
@@ -56,9 +60,9 @@ $('#search').addEventListener('submit', async e => {
   const q = $('#q').value.trim(); if (!q) return;
   try {
     const r = sugg.length && sugg[0].name.toLowerCase() === q.toLowerCase() ? sugg : await geocode(q);
-    if (!r.length) return toast(`Couldn’t find “${q}”. Try adding the country.`);
+    if (!r.length) return toast(`Couldn’t find “${q}”. Try adding the country.`, false);
     run(r[0]);
-  } catch (err) { toast('Geocoding failed: ' + err.message); }
+  } catch (err) { toast('Geocoding failed: ' + err.message, false); }
 });
 
 const DEMO = [
@@ -73,9 +77,11 @@ $('#chips').innerHTML = DEMO.map((p, i) => `<button class="chip" data-i="${i}">$
 $('#chips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) { $('#q').value = DEMO[+b.dataset.i].name; run(DEMO[+b.dataset.i]); } });
 $('#aboutBtn').addEventListener('click', () => $('#about').showModal());
 
-function toast(msg) {
+function toast(msg, fatal = true) {
   $('#status').hidden = false;
-  $('#phase').textContent = 'Error'; $('#phase').className = 'pill err';
+  // a failed search keeps the current city's results on screen, so only flag a real failure
+  if (fatal || !S.ds) { $('#phase').textContent = 'Error'; $('#phase').className = 'pill err'; }
+  $('#logBox').open = true;
   log('⚠ ' + msg);
 }
 function log(m) {
@@ -176,6 +182,7 @@ function renderEval() {
     <p class="ok-line">✓ <span><b>${fmt(gain, 0)}% lower error</b> than the same-day city average, on ${m.nTest.toLocaleString()} held-out block-days from neighbourhoods the model never saw.</span></p>
     <p class="ok-line">✓ <span>Confidence band: raw P10–P90 covered ${fmt(m.interval.raw * 100, 0)}% → <b>${fmt(m.interval.calibrated * 100, 0)}% after calibration</b> (target 80%).</span></p>
     <p class="ok-line">${m.mono.viol ? '✗' : '✓'} <span>Physics check: <b>${m.mono.viol} violations</b> in ${m.mono.checks.toLocaleString()} tests (greener never hotter, more built-up never cooler).</span></p>
+    <p class="ok-line">ℹ <span>City-wide daily level predicted from ${m.level.uses} (leave-one-date-out error ${fmt(m.level.looMae, 1)}°C over ${m.level.n} dates). The table above scores the block-level model.</span></p>
     <p class="ok-line">ℹ <span>Hotspot F1 = overlap between predicted and observed hottest 10% of blocks.</span></p>`;
   const imp = FEATURES.map((f, i) => ({ f, v: m.importance[i] })).sort((a, b) => b.v - a.v);
   const max = imp[0].v || 1;
@@ -258,7 +265,7 @@ function openPanel(i) {
   if (!p) { closePanel(); return; }
   const allP = S.preds[S.day].cells.filter(Boolean);
   const rank = allP.filter(o => o.lst > p.lst).length + 1;
-  const ex = explainCell(S.M, p.x);
+  const ex = explainCell(S.M, p.x, S.fc.days[S.day].date);
   const maxC = Math.max(...ex.items.map(it => Math.abs(it.c)), 0.5);
   const lo = Math.min(...allP.map(o => o.lo)), hi = Math.max(...allP.map(o => o.hi));
   const X = v => ((v - lo) / (hi - lo)) * 100;

@@ -7,7 +7,7 @@ const PC = 'https://planetarycomputer.microsoft.com/api';
 const OVERPASS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
 ];
 export const PX_PER_CELL = 4;
 
@@ -162,12 +162,18 @@ export async function loadScene(grid, scene) {
 }
 
 // ---------- OpenStreetMap ----------
-async function overpass(query) {
-  let lastErr;
-  for (const ep of OVERPASS) {
+// Each layer is a small, tag-free query raced against a time budget; a slow mirror is
+// skipped and a layer that cannot be fetched in time is simply left out.
+async function overpass(query, startAt = 0, budgetMs = 45000) {
+  const t0 = Date.now();
+  let lastErr = new Error('Overpass timed out');
+  for (let k = 0; k < OVERPASS.length; k++) {
+    const left = budgetMs - (Date.now() - t0);
+    if (left < 3000) break;
+    const ep = OVERPASS[(startAt + k) % OVERPASS.length];
     try {
       return await getJSON(ep, { method: 'POST', body: 'data=' + encodeURIComponent(query),
-        headers: { 'content-type': 'application/x-www-form-urlencoded' } }, 100000);
+        headers: { 'content-type': 'application/x-www-form-urlencoded' } }, Math.min(left, 30000));
     } catch (e) { lastErr = e; }
   }
   throw lastErr;
@@ -209,21 +215,24 @@ function distanceTransform(grid, seeds) {
 export async function loadOSM(grid) {
   const [w, s, e, n] = grid.bbox;
   const bb = `(${s},${w},${n},${e})`;
-  const q = `[out:json][timeout:90];
-(way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street)$"]${bb};)->.roads;
-(way["natural"="water"]${bb};way["waterway"~"^(river|canal|stream)$"]${bb};way["landuse"="reservoir"]${bb};)->.blue;
-(way["leisure"~"^(park|garden|nature_reserve)$"]${bb};way["landuse"~"^(forest|grass|recreation_ground|meadow|orchard)$"]${bb};way["natural"~"^(wood|scrub)$"]${bb};)->.green;
-.roads out tags geom qt; .blue out tags geom qt; .green out tags geom qt;`;
-  const j = await overpass(q);
+  // One light request: main roads, water and green space as tag-free geometry. Each set is
+  // preceded by an "out count" record, which tells the parser where one set ends and the next begins.
+  const q = `[out:json][timeout:40];
+(way["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"]${bb};)->.road;
+(way["natural"="water"]${bb};way["waterway"~"^(river|canal)$"]${bb};way["landuse"="reservoir"]${bb};)->.blue;
+(way["leisure"~"^(park|garden|nature_reserve)$"]${bb};way["landuse"~"^(forest|grass|recreation_ground|meadow|orchard)$"]${bb};way["natural"="wood"]${bb};)->.green;
+.road out count; .road out skel geom qt; .blue out count; .blue out skel geom qt; .green out count; .green out skel geom qt;`;
+  const j = await overpass(q, 0, 45000);
   const N = grid.cells.length;
   const road = new Float64Array(N), blue = new Array(N).fill(false), green = new Array(N).fill(false);
-  let nRoads = 0, nBlue = 0, nGreen = 0;
+  const order = ['road', 'blue', 'green'], counts = { road: 0, blue: 0, green: 0 };
+  let set = -1;
   for (const el of j.elements) {
-    if (!el.geometry) continue;
-    const t = el.tags || {};
-    const kind = t.highway ? 'road' : (t.natural === 'water' || t.waterway || t.landuse === 'reservoir') ? 'blue' : 'green';
-    kind === 'road' ? nRoads++ : kind === 'blue' ? nBlue++ : nGreen++;
+    if (el.type === 'count') { set++; continue; }
+    const kind = order[set];
     const g = el.geometry;
+    if (!kind || !g) continue;
+    counts[kind]++;
     for (let k = 1; k < g.length; k++) {
       const a = g[k - 1], b = g[k];
       const L = hav(a, b), steps = Math.max(1, Math.ceil(L / 0.1));
@@ -238,12 +247,7 @@ export async function loadOSM(grid) {
     }
   }
   const area = grid.cellKm * grid.cellKm;
-  return {
-    roadDensity: Array.from(road, v => v / area),
-    distWater: distanceTransform(grid, blue),
-    distGreen: distanceTransform(grid, green),
-    counts: { roads: nRoads, water: nBlue, green: nGreen },
-  };
+  return { roadDensity: Array.from(road, v => v / area), distWater: distanceTransform(grid, blue), distGreen: distanceTransform(grid, green), counts };
 }
 
 // ---------- elevation ----------
