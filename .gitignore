@@ -1,6 +1,5 @@
 # Datasets: never commit
-data/*
-!data/README.md
+data/
 
 # Generated figures and outputs
 outputs/
