@@ -1,0 +1,8 @@
+# Datasets: never commit
+data/*
+!data/README.md
+
+# Python
+.venv/
+__pycache__/
+*.pyc
