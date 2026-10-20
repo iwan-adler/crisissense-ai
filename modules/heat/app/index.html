@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LooMap — Street-level heat risk for any city</title>
+<meta name="description" content="LooMap trains a heat-risk model for any city in your browser from open satellite, map and weather data: block-level hotspots, a 3-day forecast, explanations and what-if scenarios.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='13' height='13' rx='3' fill='%23D9572B'/%3E%3Crect x='17' y='2' width='13' height='13' rx='3' fill='%23E8A33D'/%3E%3Crect x='2' y='17' width='13' height='13' rx='3' fill='%23E9C77B'/%3E%3Crect x='17' y='17' width='13' height='13' rx='3' fill='%233E6E73'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=JetBrains+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="./" aria-label="LooMap home">
+    <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span class="word">LooMap</span>
+  </a>
+  <form id="search" class="search" autocomplete="off">
+    <label class="sr" for="q">City</label>
+    <input id="q" name="q" type="search" placeholder="Search any city — e.g. Jaipur, Phoenix, Cairo" required>
+    <ul id="suggest" class="suggest" role="listbox" hidden></ul>
+    <label class="sr" for="radius">Area</label>
+    <select id="radius" title="Area around the city centre">
+      <option value="4">8 × 8 km</option>
+      <option value="6" selected>12 × 12 km</option>
+      <option value="8">16 × 16 km</option>
+    </select>
+    <button type="submit" class="btn primary">Analyse</button>
+  </form>
+  <button id="aboutBtn" class="btn ghost" type="button">How it works</button>
+</header>
+
+<main class="layout">
+  <aside class="side" id="side">
+    <section id="intro" class="card intro">
+      <p class="eyebrow">HeatShield AI · Challenge 02</p>
+      <h1>Heat risk, block by block, for any city.</h1>
+      <p>Pick a city. LooMap downloads real Landsat thermal imagery, OpenStreetMap and weather data, <b>trains a gradient-boosted model in your browser</b>, and forecasts heat risk for every 500&nbsp;m block for the next 3 days — with the reasons and a confidence band.</p>
+      <div class="chips" id="chips"></div>
+    </section>
+
+    <section id="status" class="card" hidden>
+      <div class="row between"><h2 id="cityName">—</h2><span id="phase" class="pill">Working…</span></div>
+      <p id="citySub" class="muted"></p>
+      <details id="logBox" open><summary>Pipeline log</summary><ol id="log" class="log"></ol></details>
+    </section>
+
+    <section id="forecast" class="card" hidden>
+      <h3>3-day forecast</h3>
+      <div id="days" class="days"></div>
+      <p class="muted small" id="fcNote"></p>
+    </section>
+
+    <section id="layers" class="card" hidden>
+      <h3>Map layer</h3>
+      <div class="seg" role="tablist" id="layerSeg">
+        <button data-layer="heat" class="on">Surface heat</button>
+        <button data-layer="risk">Risk</button>
+        <button data-layer="hot">Hotspots</button>
+        <button data-layer="unc">Uncertainty</button>
+      </div>
+      <div id="legend" class="legend"></div>
+      <label class="check"><input type="checkbox" id="obsToggle"> Show latest satellite observation instead of the forecast</label>
+    </section>
+
+    <section id="evalCard" class="card" hidden>
+      <h3>Does it work? <span class="muted small">spatial cross-validation</span></h3>
+      <table class="tbl" id="evalTbl"></table>
+      <div id="evalMore" class="small"></div>
+      <h4>What drives heat here</h4>
+      <div id="imp" class="bars"></div>
+      <div class="row gap">
+        <button class="btn small" id="csvBtn" type="button">Download dataset (CSV)</button>
+        <button class="btn small ghost" id="rerunBtn" type="button">Re-fetch data</button>
+      </div>
+    </section>
+  </aside>
+
+  <section class="mapwrap">
+    <div id="map" aria-label="Heat map"></div>
+    <div id="busy" class="busy" hidden><div class="spinner"></div><p id="busyText">Working…</p></div>
+    <div id="scenarioBar" class="scenario-bar" hidden></div>
+  </section>
+
+  <aside id="panel" class="panel" hidden>
+    <button class="close" id="closePanel" aria-label="Close block details">×</button>
+    <div id="panelBody"></div>
+  </aside>
+</main>
+
+<dialog id="about">
+  <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+  <h2>How LooMap works</h2>
+  <ol class="steps">
+    <li><b>Collect.</b> For the chosen area LooMap searches the Landsat 8/9 Collection-2 archive (USGS, via Microsoft Planetary Computer) for the clearest scenes of the last 3 years and downloads thermal (land-surface temperature) and optical bands. Clouds and shadows are removed with the QA band.</li>
+    <li><b>Engineer.</b> Each 500 m block gets vegetation (NDVI), built-up (NDBI) and open-water share from the same scene, road density and distance to water and green space from OpenStreetMap, relative elevation (Copernicus DEM) and the ERA5 air temperature, humidity and wind at the moment the satellite passed.</li>
+    <li><b>Learn.</b> A gradient-boosted tree model (written from scratch, trained in your browser) learns surface temperature from those features. Monotone constraints keep it physically sensible: more vegetation or water never raises predicted heat; more built-up surface or hotter air never lowers it.</li>
+    <li><b>Prove.</b> Spatial 4-fold cross-validation holds out whole neighbourhoods and compares against a same-day city-average baseline, a linear model and a greenery-only model. Quantile models give a P10–P90 band, recalibrated (split-conformal) so it really covers ~80% of held-out observations.</li>
+    <li><b>Forecast.</b> Each block's latest surface state is combined with the Open-Meteo forecast for the next 3 days at satellite overpass time. Feels-like risk = city forecast apparent max + 0.3 × the block's surface-heat anomaly (an assumed surface-to-air coupling), banded with US NWS heat-index categories.</li>
+    <li><b>Explain & act.</b> Every block shows the features pushing its temperature up or down (tree-path attribution), Getis-Ord Gi* marks statistically significant hotspots, and the what-if tool re-runs the model with more trees or new development.</li>
+  </ol>
+  <h3>Limits — read before using</h3>
+  <ul>
+    <li>A research prototype, not a heat alert or a health warning.</li>
+    <li>Landsat measures <i>surface</i> temperature at ~10:30 local time, not the air temperature people feel or night-time heat.</li>
+    <li>OpenStreetMap is less complete in informal settlements, which are often the most heat-vulnerable.</li>
+    <li>What-if scenarios change satellite indices, not real materials; treat them as directional.</li>
+  </ul>
+  <p class="muted small">Data: USGS Landsat 8/9 C2 L2 · Microsoft Planetary Computer · © OpenStreetMap contributors · Open-Meteo (ERA5, ECMWF/DWD/NOAA forecasts, Copernicus DEM). No personal data is used. Nothing leaves your browser except requests to these public APIs.</p>
+</dialog>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
